@@ -1,7 +1,11 @@
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from src.extract_question_and_document import extract_questions_and_documents
 from src.llm.ask_with_documents import ask_question_with_documents
+
+load_dotenv()
 
 
 def main():
