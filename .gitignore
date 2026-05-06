@@ -1,6 +1,10 @@
 data/*
 outputs/*
 src/__pycache__/*
+src/llm/__pycache__/*
 
 .python-version
 uv.lock
+
+.env
+

@@ -6,6 +6,10 @@ from pathlib import Path
 import requests
 from openai import OpenAI
 
+
+from dotenv import load_dotenv
+load_dotenv()
+
 SUPPORTED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 
 OLLAMA_BASE_URL = "http://localhost:11434/v1"
@@ -73,7 +77,9 @@ def _call_remote(content: list[dict]) -> str:
     }
     response = requests.post(url, headers=headers, json=payload, verify=False)
     response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"]
+    data = response.json()
+    print(f"[DEBUG] Raw LLM response: {data}")
+    return data["choices"][0]["message"]["content"]
 
 
 def ask_question_with_documents(
