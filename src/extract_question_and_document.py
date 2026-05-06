@@ -7,8 +7,29 @@ import pandas as pd
 
 def _parse_documents(cell_value: str) -> list[str]:
     """Parse a cell like '1. doc1 \n2. doc2' into ['doc1', 'doc2']."""
-    parts = re.split(r"\d+\.\s*", cell_value)
+    parts = re.split(r"\d+\.?\s*", cell_value)
     return [p.strip() for p in parts if p.strip()]
+
+
+def _build_category_map(ws: openpyxl.worksheet.worksheet.Worksheet, category_row: int) -> dict[int, str]:
+    """Map each column index to its category based on merged cells in the category row."""
+    col_to_category: dict[int, str] = {}
+    for merged_range in ws.merged_cells.ranges:
+        if merged_range.min_row <= category_row <= merged_range.max_row:
+            value = ws.cell(row=merged_range.min_row, column=merged_range.min_col).value
+            if value and str(value).strip():
+                label = str(value).strip()
+                for c in range(merged_range.min_col, merged_range.max_col + 1):
+                    col_to_category[c] = label
+
+    # Also pick up non-merged cells that have a value on the category row.
+    for col_idx in range(1, ws.max_column + 1):
+        if col_idx not in col_to_category:
+            cell_value = ws.cell(row=category_row, column=col_idx).value
+            if cell_value and str(cell_value).strip():
+                col_to_category[col_idx] = str(cell_value).strip()
+
+    return col_to_category
 
 
 def extract_questions_and_documents(
@@ -17,6 +38,7 @@ def extract_questions_and_documents(
     start_col: int,
     document_row: int,
     question_row: int,
+    category_row: int | None = None,
 ) -> pd.DataFrame:
     """Read an Excel sheet and return a DataFrame pairing each question with its documents.
 
@@ -26,12 +48,19 @@ def extract_questions_and_documents(
         start_col: First column (1-indexed) containing data.
         document_row: Row number (1-indexed) containing documents.
         question_row: Row number (1-indexed) containing questions.
+        category_row: Optional row number (1-indexed) between documents and questions
+                      that may contain merged cells with category labels.
 
     Returns:
-        DataFrame with columns: question, question_ref, document_ref, 1, 2, ...
+        DataFrame with columns: question, category (if applicable), question_ref,
+        document_ref, 1, 2, ...
     """
-    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    wb = openpyxl.load_workbook(file_path, data_only=True)
     ws = wb[sheet_name]
+
+    col_to_category: dict[int, str] = {}
+    if category_row is not None:
+        col_to_category = _build_category_map(ws, category_row)
 
     rows: list[dict] = []
     max_docs = 0
@@ -62,6 +91,10 @@ def extract_questions_and_documents(
             "question_ref": f"{col_letter}{question_row}",
             "document_ref": f"{col_letter}{document_row}",
         }
+
+        if category_row is not None:
+            row_data["category"] = col_to_category.get(col_idx)
+
         for i, doc in enumerate(docs, start=1):
             row_data[str(i)] = doc
 
@@ -74,5 +107,10 @@ def extract_questions_and_documents(
         raise ValueError("No valid question/document pairs found in the sheet.")
 
     doc_columns = [str(i) for i in range(1, max_docs + 1)]
-    df = pd.DataFrame(rows, columns=["question", "question_ref", "document_ref"] + doc_columns)
+    base_columns = ["question"]
+    if category_row is not None:
+        base_columns.append("category")
+    base_columns += ["question_ref", "document_ref"]
+
+    df = pd.DataFrame(rows, columns=base_columns + doc_columns)
     return df
