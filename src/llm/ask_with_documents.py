@@ -73,13 +73,11 @@ def _call_remote(content: list[dict]) -> str:
     }
     payload = {
         "messages": [{"role": "user", "content": content}],
-        "max_tokens": 2000,
+        "max_tokens": 8000,
     }
     response = requests.post(url, headers=headers, json=payload, verify=False)
     response.raise_for_status()
-    data = response.json()
-    print(f"[DEBUG] Raw LLM response: {data}")
-    return data["choices"][0]["message"]["content"]
+    return response.json()["choices"][0]["message"]["content"]
 
 
 def ask_question_with_documents(
