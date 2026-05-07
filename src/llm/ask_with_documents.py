@@ -3,6 +3,7 @@ import os
 import warnings
 from pathlib import Path
 
+import httpx
 from openai import OpenAI
 from pydantic import BaseModel
 
@@ -64,7 +65,11 @@ def _build_remote_client() -> tuple[OpenAI, str]:
     base_url = os.environ["LLM_BASE_URL"]
     model = os.environ["LLM_MODEL"]
     token = os.environ["LLM_TOKEN"]
-    client = OpenAI(base_url=f"{base_url}/v1", api_key=token)
+    client = OpenAI(
+        base_url=f"{base_url}/v1",
+        api_key=token,
+        http_client=httpx.Client(verify=False),
+    )
     return client, model
 
 
