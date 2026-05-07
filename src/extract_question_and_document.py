@@ -39,6 +39,7 @@ def extract_questions_and_documents(
     document_row: int,
     question_row: int,
     category_row: int | None = None,
+    structured_output_row: int | None = None,
 ) -> pd.DataFrame:
     """Read an Excel sheet and return a DataFrame pairing each question with its documents.
 
@@ -50,10 +51,12 @@ def extract_questions_and_documents(
         question_row: Row number (1-indexed) containing questions.
         category_row: Optional row number (1-indexed) between documents and questions
                       that may contain merged cells with category labels.
+        structured_output_row: Optional row number (1-indexed) containing structured
+                               output specs (e.g. "Bool", "str=-COMPLET-INCOMPLET-ABSENT-SO").
 
     Returns:
-        DataFrame with columns: question, category (if applicable), question_ref,
-        document_ref, 1, 2, ...
+        DataFrame with columns: question, category (if applicable), structured_output,
+        question_ref, document_ref, 1, 2, ...
     """
     wb = openpyxl.load_workbook(file_path, data_only=True)
     ws = wb[sheet_name]
@@ -95,6 +98,10 @@ def extract_questions_and_documents(
         if category_row is not None:
             row_data["category"] = col_to_category.get(col_idx)
 
+        if structured_output_row is not None:
+            spec = ws.cell(row=structured_output_row, column=col_idx).value
+            row_data["structured_output"] = str(spec).strip() if spec else None
+
         for i, doc in enumerate(docs, start=1):
             row_data[str(i)] = doc
 
@@ -110,6 +117,8 @@ def extract_questions_and_documents(
     base_columns = ["question"]
     if category_row is not None:
         base_columns.append("category")
+    if structured_output_row is not None:
+        base_columns.append("structured_output")
     base_columns += ["question_ref", "document_ref"]
 
     df = pd.DataFrame(rows, columns=base_columns + doc_columns)

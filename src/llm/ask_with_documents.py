@@ -3,9 +3,8 @@ import os
 import warnings
 from pathlib import Path
 
-import requests
 from openai import OpenAI
-
+from pydantic import BaseModel
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -61,23 +60,37 @@ def _call_ollama(content: list[dict]) -> str:
     return response.choices[0].message.content
 
 
-def _call_remote(content: list[dict]) -> str:
+def _build_remote_client() -> tuple[OpenAI, str]:
     base_url = os.environ["LLM_BASE_URL"]
     model = os.environ["LLM_MODEL"]
     token = os.environ["LLM_TOKEN"]
+    client = OpenAI(base_url=f"{base_url}/v1", api_key=token)
+    return client, model
 
-    url = f"{base_url}/openai/deployments/{model}/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "messages": [{"role": "user", "content": content}],
-        "max_tokens": 8000,
-    }
-    response = requests.post(url, headers=headers, json=payload, verify=False)
-    response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"]
+
+def _call_remote(
+    content: list[dict], response_model: type[BaseModel] | None = None,
+) -> str:
+    client, model = _build_remote_client()
+    messages = [{"role": "user", "content": content}]
+
+    if response_model is not None:
+        resp = client.beta.chat.completions.parse(
+            model=model,
+            messages=messages,
+            max_tokens=8000,
+            response_format=response_model,
+        )
+        parsed = resp.choices[0].message.parsed
+        answer = parsed.answer
+        return answer.value if hasattr(answer, "value") else str(answer)
+
+    resp = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        max_tokens=8000,
+    )
+    return resp.choices[0].message.content
 
 
 def ask_question_with_documents(
@@ -85,6 +98,7 @@ def ask_question_with_documents(
     document_names: list[str],
     documents_dir: Path,
     use_remote: bool = False,
+    response_model: type[BaseModel] | None = None,
 ) -> str:
     """Send a question and its associated documents to the LLM.
 
@@ -97,6 +111,8 @@ def ask_question_with_documents(
         documents_dir: Directory containing the document files.
         use_remote: If True, use the remote LLM (env vars LLM_BASE_URL, LLM_MODEL,
                     LLM_TOKEN). If False, use local Ollama.
+        response_model: Optional Pydantic model to enforce structured output
+                        (only supported with remote LLM).
     """
     found, missing = _resolve_documents(document_names, documents_dir)
 
@@ -115,5 +131,5 @@ def ask_question_with_documents(
     content = _build_message_content(question, found)
 
     if use_remote:
-        return _call_remote(content)
+        return _call_remote(content, response_model=response_model)
     return _call_ollama(content)
