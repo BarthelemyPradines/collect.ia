@@ -12,7 +12,7 @@ load_dotenv()
 
 def main():
     df = extract_questions_and_documents(
-        file_path=Path("data/ANALYSE DOE  SITE TUNNEL trame.xlsx"),
+        file_path=Path("data/ANALYSE DOE  SITE TUNNEL trame2.xlsx"),
         sheet_name="TUNNELS",
         start_col=3,
         document_row=1,
@@ -41,14 +41,19 @@ def main():
         print(f"Structured output: {spec}")
     print(response_model)
     
-    answer = ask_question_with_documents(
+    result = ask_question_with_documents(
         question=row["question"],
         document_names=document_names,
         documents_dir=Path("data"),
         use_remote=True,
         response_model=response_model,
     )
-    print(f"Answer: {answer}")
+    if isinstance(result, tuple):
+        answer, source = result
+        print(f"Answer: {answer}")
+        print(f"Source: {source}")
+    else:
+        print(f"Answer: {result}")
 
 
 if __name__ == "__main__":

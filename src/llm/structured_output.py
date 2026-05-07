@@ -14,7 +14,11 @@ def parse_structured_output_spec(spec: str) -> type[BaseModel]:
     spec = spec.strip()
 
     if spec.lower() == "bool":
-        return create_model("BoolAnswer", answer=(bool, ...))
+        return create_model(
+            "BoolAnswer",
+            answer=(bool, ...),
+            source=(str, ...),
+        )
 
     if spec.startswith("enum="):
         raw_values = spec[5:]  # everything after "enum="
@@ -23,6 +27,10 @@ def parse_structured_output_spec(spec: str) -> type[BaseModel]:
             raise ValueError(f"No enum values found in spec: {spec!r}")
 
         enum_cls = Enum("AnswerEnum", {v: v for v in values})
-        return create_model("EnumAnswer", answer=(enum_cls, ...))
+        return create_model(
+            "EnumAnswer",
+            answer=(enum_cls, ...),
+            source=(str, ...),
+        )
 
     raise ValueError(f"Unknown structured output spec: {spec!r}")

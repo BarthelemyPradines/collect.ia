@@ -75,11 +75,21 @@ def _build_remote_client() -> tuple[OpenAI, str]:
 
 def _call_remote(
     content: list[dict], response_model: type[BaseModel] | None = None,
-) -> str:
+) -> str | tuple[str, str]:
     client, model = _build_remote_client()
     messages = [{"role": "user", "content": content}]
 
     if response_model is not None:
+        source_instruction = {
+            "type": "text",
+            "text": (
+                "For the 'source' field, indicate whether your answer was "
+                "directly read from text in the document or deduced from "
+                "visual elements (diagrams, photos, plans, symbols, etc.)."
+            ),
+        }
+        messages[0]["content"].append(source_instruction)
+
         resp = client.beta.chat.completions.parse(
             model=model,
             messages=messages,
@@ -88,7 +98,8 @@ def _call_remote(
         )
         parsed = resp.choices[0].message.parsed
         answer = parsed.answer
-        return answer.value if hasattr(answer, "value") else str(answer)
+        answer_str = answer.value if hasattr(answer, "value") else str(answer)
+        return answer_str, parsed.source
 
     resp = client.chat.completions.create(
         model=model,
@@ -104,7 +115,7 @@ def ask_question_with_documents(
     documents_dir: Path,
     use_remote: bool = False,
     response_model: type[BaseModel] | None = None,
-) -> str:
+) -> str | tuple[str, str]:
     """Send a question and its associated documents to the LLM.
 
     Tries to find all documents listed. If some are missing, sends what's available
