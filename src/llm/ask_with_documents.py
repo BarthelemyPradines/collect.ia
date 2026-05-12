@@ -12,8 +12,8 @@ load_dotenv()
 
 SUPPORTED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 
-OLLAMA_BASE_URL = "http://localhost:11434/v1"
-OLLAMA_MODEL = "ministral-3:3b-instruct-2512-q4_K_M"
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "ministral-3:3b-instruct-2512-q4_K_M")
 
 
 def _resolve_documents(

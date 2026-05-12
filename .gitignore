@@ -1,6 +1,7 @@
 data/*
 outputs/*
 src/__pycache__/*
+src/plot/__pycache__/*
 src/llm/__pycache__/*
 
 .python-version
