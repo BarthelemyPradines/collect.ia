@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from src.extract_question_and_document import extract_questions_and_documents
 from src.llm.ask_with_documents import ask_question_with_documents
 from src.llm.structured_output import parse_structured_output_spec
+from src.plot.bounding_boxes import export_with_bounding_boxes
 
 load_dotenv()
 
@@ -60,6 +61,18 @@ def main():
             print(f"Bounding box: {result['bounding_box']}")
         if "bounding_boxes" in result:
             print(f"Bounding boxes: {result['bounding_boxes']}")
+
+        if ask_bounding_box:
+            boxes = result.get("bounding_boxes") or []
+            if "bounding_box" in result:
+                boxes = [result["bounding_box"]]
+            if boxes:
+                documents_dir = Path("data")
+                for name in document_names:
+                    for match in documents_dir.glob(f"{name}.*"):
+                        if match.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
+                            out = export_with_bounding_boxes(match, boxes)
+                            print(f"Bounding box image saved to: {out}")
     else:
         print(f"Answer: {result}")
 
