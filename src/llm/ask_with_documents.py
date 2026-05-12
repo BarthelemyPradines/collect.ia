@@ -52,13 +52,61 @@ def _build_message_content(question: str, document_paths: list[Path]) -> list[di
     return content
 
 
-def _call_ollama(content: list[dict]) -> str:
+def _parse_structured_response(raw: str, response_model: type[BaseModel]) -> dict:
+    """Parse a JSON string into the response model and extract answer/source/bounding_boxes."""
+    parsed = response_model.model_validate_json(raw)
+    answer = parsed.answer
+    if isinstance(answer, list):
+        answer_str = ", ".join(a.value for a in answer)
+    elif hasattr(answer, "value"):
+        answer_str = answer.value
+    else:
+        answer_str = str(answer)
+
+    result: dict = {"answer": answer_str, "source": parsed.source}
+    if hasattr(parsed, "bounding_box"):
+        result["bounding_box"] = parsed.bounding_box
+    if hasattr(parsed, "bounding_boxes"):
+        result["bounding_boxes"] = parsed.bounding_boxes
+    return result
+
+
+def _call_ollama(
+    content: list[dict], response_model: type[BaseModel] | None = None,
+) -> str | dict:
     client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama")
+
+    messages = [{"role": "user", "content": content}]
+    kwargs: dict = {}
+
+    if response_model is not None:
+        content.append({
+            "type": "text",
+            "text": (
+                "For the 'source' field, indicate whether your answer was "
+                "directly read from text in the document or deduced from "
+                "visual elements (diagrams, photos, plans, symbols, etc.)."
+            ),
+        })
+        kwargs["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": response_model.__name__,
+                "strict": True,
+                "schema": response_model.model_json_schema(),
+            },
+        }
+
     response = client.chat.completions.create(
         model=OLLAMA_MODEL,
-        messages=[{"role": "user", "content": content}],
+        messages=messages,
+        **kwargs,
     )
-    return response.choices[0].message.content
+    raw = response.choices[0].message.content
+
+    if response_model is not None:
+        return _parse_structured_response(raw, response_model)
+    return raw
 
 
 def _build_remote_client() -> tuple[OpenAI, str]:
@@ -97,21 +145,9 @@ def _call_remote(
             response_format=response_model,
         )
         parsed = resp.choices[0].message.parsed
-        answer = parsed.answer
-        if isinstance(answer, list):
-            answer_str = ", ".join(a.value for a in answer)
-        elif hasattr(answer, "value"):
-            answer_str = answer.value
-        else:
-            answer_str = str(answer)
-
-        result: dict = {"answer": answer_str, "source": parsed.source}
-        if hasattr(parsed, "bounding_box"):
-            result["bounding_box"] = parsed.bounding_box
-        if hasattr(parsed, "bounding_boxes"):
-            result["bounding_boxes"] = parsed.bounding_boxes
-
-        return result
+        return _parse_structured_response(
+            parsed.model_dump_json(), response_model,
+        )
 
     resp = client.chat.completions.create(
         model=model,
@@ -139,8 +175,7 @@ def ask_question_with_documents(
         documents_dir: Directory containing the document files.
         use_remote: If True, use the remote LLM (env vars LLM_BASE_URL, LLM_MODEL,
                     LLM_TOKEN). If False, use local Ollama.
-        response_model: Optional Pydantic model to enforce structured output
-                        (only supported with remote LLM).
+        response_model: Optional Pydantic model to enforce structured output.
     """
     found, missing = _resolve_documents(document_names, documents_dir)
 
@@ -160,4 +195,4 @@ def ask_question_with_documents(
 
     if use_remote:
         return _call_remote(content, response_model=response_model)
-    return _call_ollama(content)
+    return _call_ollama(content, response_model=response_model)
