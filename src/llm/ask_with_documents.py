@@ -98,7 +98,12 @@ def _call_remote(
         )
         parsed = resp.choices[0].message.parsed
         answer = parsed.answer
-        answer_str = answer.value if hasattr(answer, "value") else str(answer)
+        if isinstance(answer, list):
+            answer_str = ", ".join(a.value for a in answer)
+        elif hasattr(answer, "value"):
+            answer_str = answer.value
+        else:
+            answer_str = str(answer)
 
         result: dict = {"answer": answer_str, "source": parsed.source}
         if hasattr(parsed, "bounding_box"):

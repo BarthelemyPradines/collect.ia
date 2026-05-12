@@ -23,6 +23,7 @@ def parse_structured_output_spec(
     Supported formats:
         - "bool"              -> model with a single `answer: bool` field
         - "enum=A,B,C"        -> model with a single `answer: Enum("A","B","C")` field
+        - "enums=A,B,C"       -> model with `answer: list[Enum("A","B","C")]`
 
     When ask_bounding_box is True, a bounding_box (single enum) or
     bounding_boxes (list/bool) field is added to the model.
@@ -38,19 +39,23 @@ def parse_structured_output_spec(
             fields["bounding_boxes"] = (list[BoundingBox], ...)
         return create_model("BoolAnswer", **fields)
 
-    if spec.startswith("enum="):
-        raw_values = spec[5:]  # everything after "enum="
+    if spec.startswith("enum=") or spec.startswith("enums="):
+        multi = spec.startswith("enums=")
+        prefix_len = 6 if multi else 5
+        raw_values = spec[prefix_len:]
         values = [v.strip() for v in raw_values.split(",") if v.strip()]
         if not values:
             raise ValueError(f"No enum values found in spec: {spec!r}")
 
         enum_cls = Enum("AnswerEnum", {v: v for v in values})
+        answer_type = list[enum_cls] if multi else enum_cls
         fields = {
-            "answer": (enum_cls, ...),
+            "answer": (answer_type, ...),
             "source": (str, ...),
         }
         if ask_bounding_box:
             fields["bounding_box"] = (BoundingBox, ...)
-        return create_model("EnumAnswer", **fields)
+        model_name = "EnumsAnswer" if multi else "EnumAnswer"
+        return create_model(model_name, **fields)
 
     raise ValueError(f"Unknown structured output spec: {spec!r}")
