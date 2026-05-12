@@ -75,7 +75,7 @@ def _build_remote_client() -> tuple[OpenAI, str]:
 
 def _call_remote(
     content: list[dict], response_model: type[BaseModel] | None = None,
-) -> str | tuple[str, str]:
+) -> str | dict:
     client, model = _build_remote_client()
     messages = [{"role": "user", "content": content}]
 
@@ -99,7 +99,14 @@ def _call_remote(
         parsed = resp.choices[0].message.parsed
         answer = parsed.answer
         answer_str = answer.value if hasattr(answer, "value") else str(answer)
-        return answer_str, parsed.source
+
+        result: dict = {"answer": answer_str, "source": parsed.source}
+        if hasattr(parsed, "bounding_box"):
+            result["bounding_box"] = parsed.bounding_box
+        if hasattr(parsed, "bounding_boxes"):
+            result["bounding_boxes"] = parsed.bounding_boxes
+
+        return result
 
     resp = client.chat.completions.create(
         model=model,
@@ -115,7 +122,7 @@ def ask_question_with_documents(
     documents_dir: Path,
     use_remote: bool = False,
     response_model: type[BaseModel] | None = None,
-) -> str | tuple[str, str]:
+) -> str | dict:
     """Send a question and its associated documents to the LLM.
 
     Tries to find all documents listed. If some are missing, sends what's available

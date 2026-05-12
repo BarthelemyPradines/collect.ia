@@ -36,7 +36,12 @@ def main():
     print(f"Documents: {document_names}")
 
     spec = row.get("structured_output")
-    response_model = parse_structured_output_spec(spec) if pd.notna(spec) else None
+    ask_bounding_box = True
+    response_model = (
+        parse_structured_output_spec(spec, ask_bounding_box=ask_bounding_box)
+        if pd.notna(spec)
+        else None
+    )
     if response_model:
         print(f"Structured output: {spec}")
     print(response_model)
@@ -48,10 +53,13 @@ def main():
         use_remote=True,
         response_model=response_model,
     )
-    if isinstance(result, tuple):
-        answer, source = result
-        print(f"Answer: {answer}")
-        print(f"Source: {source}")
+    if isinstance(result, dict):
+        print(f"Answer: {result['answer']}")
+        print(f"Source: {result['source']}")
+        if "bounding_box" in result:
+            print(f"Bounding box: {result['bounding_box']}")
+        if "bounding_boxes" in result:
+            print(f"Bounding boxes: {result['bounding_boxes']}")
     else:
         print(f"Answer: {result}")
 
